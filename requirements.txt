@@ -1,0 +1,13 @@
+numpy>=1.22,<2
+matplotlib
+tqdm
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch == 2.1.1+cu118
+torchvision == 0.16.1+cu118
+torchaudio == 2.1.1+cu118
+#torch and torchvision and torchaudio, please install their cuda version manually 
+ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+pandas 2.3.3 requires pytz>=2020.1, which is not installed.
+opencv-python 4.12.0.88 requires numpy<2.3.0,>=2; python_version >= "3.9", but you have numpy 1.26.4 which is incompatible.
+
+/home/zrc/anaconda3/envs/yolov5/bin/pip install "scipy>=1.4.1" "protobuf<=3.20.1" ipython psutil
