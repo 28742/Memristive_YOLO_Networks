@@ -1,0 +1,95 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+*.ipynb
+
+# Distribution / packaging
+*.manifest
+*.spec
+
+# PyInstaller
+*.pyc
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Deep Learning / PyTorch
+*.pth
+*.pt
+*.ckpt
+*.h5
+*.hdf5
+runs/
+wandb/
+mlruns/
+
+# Data
+data/
+datasets/
+*.csv
+*.json
+*.xml
+*.zip
+*.tar.gz
+*.tar
+*.gz
+
+# Logs
+logs/
+*.log
+output/
+results/
+
+# YOLO specific
+weights/
+*.weights
+*.cfg
+yolov5/
+yolov8/
