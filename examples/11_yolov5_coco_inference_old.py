@@ -330,7 +330,7 @@ def evaluate(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", type=str, default="yolov5m", choices=["yolov5n", "yolov5s", "yolov5m"])
+    parser.add_argument("--model", type=str, default="yolov5n", choices=["yolov5n", "yolov5s", "yolov5m"])
     # batch-size in memristive mode is extremely memory hungry (especially at img=640),
     # so we decide the default dynamically after parsing.
     parser.add_argument("--batch-size", type=int, default=None, help="software 模式默认 8；mem 模式默认 1（更省显存）")
@@ -338,7 +338,7 @@ def main():
     parser.add_argument("--device", type=str, default="cuda:0" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--data-root", type=str, default="")
     parser.add_argument("--download", action="store_true", help="若 COCO val2017 缺失则自动下载到 data-root")
-    parser.add_argument("--max-batches", type=int, default=200, help=">0 时只评估前 N 个 batch（调试用）")
+    parser.add_argument("--max-batches", type=int, default=100, help=">0 时只评估前 N 个 batch（调试用）")
     parser.add_argument("--conf", type=float, default=0.001, help="YOLOv5 conf threshold")
     parser.add_argument("--iou", type=float, default=0.65, help="YOLOv5 NMS IoU threshold")
     parser.add_argument("--max-det", type=int, default=300, help="YOLOv5 max det per image")
@@ -386,10 +386,10 @@ def main():
         mem_engine = DPETensor(
             HGS=1e-5,
             LGS=1e-8,
-            write_variation=0.0,
+            write_variation=0.05,
             rate_stuck_HGS=0.00,
             rate_stuck_LGS=0.00,
-            read_variation=0.02,
+            read_variation=0.00,
             vnoise=0.0,
             rdac=2**2,
             g_level=2**2,

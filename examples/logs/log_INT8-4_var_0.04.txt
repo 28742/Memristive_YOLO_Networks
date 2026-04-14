@@ -1,0 +1,72 @@
+Using cache found in /home/zrc/.cache/torch/hub/ultralytics_yolov5_v6.2
+YOLOv5 🚀 2026-1-16 Python-3.10.19 torch-2.1.1+cu118 CUDA:0 (NVIDIA GeForce RTX 3090, 24126MiB)
+
+Fusing layers... 
+YOLOv5n summary: 213 layers, 1867405 parameters, 0 gradients
+Adding AutoShape... 
+[MemIntelli][YOLOv5] 已将 60 个 Conv2d 替换为 Conv2dMem。
+[MemIntelli][Check] Conv2dMem count: 60
+[MemIntelli][Check] First Conv2dMem.engine type: <class 'memintelli.pimpy.memmat_tensor.DPETensor'>
+loading annotations into memory...
+Done (t=0.42s)
+creating index...
+index created!
+Evaluating (COCO val2017):   0%|          | 0/5000 [00:00<?, ?batch/s]Evaluating (COCO val2017):   0%|          | 0/5000 [00:00<?, ?batch/s]
+Traceback (most recent call last):
+  File "/home/zrc/MemIntelli/examples/11_yolov5_coco_inference.py", line 472, in <module>
+    main()
+  File "/home/zrc/MemIntelli/examples/11_yolov5_coco_inference.py", line 463, in main
+    stats = evaluate(yolo, loader, device, max_batches=args.max_batches, mem_debug=bool(args.mem_debug and args.mem_enabled))
+  File "/home/zrc/MemIntelli/examples/11_yolov5_coco_inference.py", line 269, in evaluate
+    results = model(images)
+  File "/home/zrc/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/zrc/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/zrc/MemIntelli/memintelli/NN_models/YOLOv5.py", line 256, in forward
+    return self.model(x)
+  File "/home/zrc/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/zrc/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/zrc/.local/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 115, in decorate_context
+    return func(*args, **kwargs)
+  File "/home/zrc/.cache/torch/hub/ultralytics_yolov5_v6.2/models/common.py", line 603, in forward
+    return self.model(imgs.to(p.device).type_as(p), augment, profile)  # inference
+  File "/home/zrc/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/zrc/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/zrc/.cache/torch/hub/ultralytics_yolov5_v6.2/models/common.py", line 465, in forward
+    y = self.model(im, augment=augment, visualize=visualize) if augment or visualize else self.model(im)
+  File "/home/zrc/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/zrc/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/zrc/.cache/torch/hub/ultralytics_yolov5_v6.2/models/yolo.py", line 192, in forward
+    return self._forward_once(x, profile, visualize)  # single-scale inference, train
+  File "/home/zrc/.cache/torch/hub/ultralytics_yolov5_v6.2/models/yolo.py", line 105, in _forward_once
+    x = m(x)  # run
+  File "/home/zrc/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/zrc/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/zrc/.cache/torch/hub/ultralytics_yolov5_v6.2/models/common.py", line 49, in forward_fuse
+    return self.act(self.conv(x))
+  File "/home/zrc/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/zrc/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/zrc/MemIntelli/memintelli/NN_layers/convolution.py", line 105, in forward
+    return conv2d_mem_func(self.engine, input, self.weight, input_sliced, self.weight_sliced, self.bias,
+  File "/home/zrc/MemIntelli/memintelli/NN_layers/functions.py", line 344, in conv2d_mem_func
+    return Conv2dMemRunc.apply(engine, input, weight, input_slice, weight_slice, bias, stride, padding, dilation)
+  File "/home/zrc/.local/lib/python3.10/site-packages/torch/autograd/function.py", line 539, in apply
+    return super().apply(*args, **kwargs)  # type: ignore[misc]
+  File "/home/zrc/MemIntelli/memintelli/NN_layers/functions.py", line 132, in forward
+    out = engine.MapReduceDot(input_sliced, weight_sliced)
+  File "/home/zrc/MemIntelli/memintelli/pimpy/memmat_tensor.py", line 153, in MapReduceDot
+    result = self._dot(x, mat, self._num2V, self._gen_read_noise)
+  File "/home/zrc/MemIntelli/memintelli/pimpy/memmat_tensor.py", line 279, in _dot
+    raise ValueError('The weight data is out of the range!')
+ValueError: The weight data is out of the range!

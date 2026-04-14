@@ -52,8 +52,9 @@ class Conv1dMem(nn.Module):
 class Conv2dMem(nn.Module):
     def __init__(self, engine, in_channels, out_channels, kernel_size, input_slice:[list, tuple, torch.Tensor],
                  weight_slice:[list, tuple], stride=1, padding=0, dilation=1,bias=True, device=None, dtype=None,
-                  bw_e=None, input_paral_size=(1, 32), weight_paral_size=(32, 32), 
-                  input_quant_gran=(1, 32), weight_quant_gran=(32, 32)):
+                  bw_e=None, input_bw_e=None, input_paral_size=(1, 32), weight_paral_size=(32, 32), 
+                  input_quant_gran=(1, 32), weight_quant_gran=(32, 32),
+                  input_clip_ratio=1.0, weight_clip_ratio=1.0):
         super(Conv2dMem, self).__init__()
         factory_kwargs = {'device': device, 'dtype': dtype}
         super(Conv2dMem, self).__init__()
@@ -63,6 +64,10 @@ class Conv2dMem(nn.Module):
         self.stride = stride
         self.padding = padding
         self.dilation = dilation
+
+        self.input_bw_e = input_bw_e if input_bw_e is not None else bw_e
+        self.input_clip_ratio = input_clip_ratio
+        self.weight_clip_ratio = weight_clip_ratio
 
         factory_kwargs = {'device': device, 'dtype': dtype}
 
@@ -79,7 +84,8 @@ class Conv2dMem(nn.Module):
         self.input_paral_size = input_paral_size
         self.input_quant_gran = input_quant_gran
         self.weight_sliced = SlicedData(self.weight_slice_method, device=device,
-                                        bw_e=bw_e, is_weight=True, paral_size=weight_paral_size, quant_gran=weight_quant_gran)
+                                        bw_e=bw_e, is_weight=True, paral_size=weight_paral_size, 
+                                        quant_gran=weight_quant_gran, clip_ratio=weight_clip_ratio)
         self.engine = engine
         # the sliced weight shape is (C_in*kh*kw, C_out)
         self.weight_sliced.slice_data_imp(engine, self.weight.reshape(self.weight.shape[0], -1).detach().t())
@@ -97,8 +103,9 @@ class Conv2dMem(nn.Module):
         # input_unfold size: (N, C*kh*kw, L), N is the batch size, C is the channel, kh and kw is the kernel size
         # L is the length of the unfolded vector, L = H_out * W_out
         # transpose the input_unfold to (N, L, C*kh*kw)
-        input_sliced = SlicedData(self.input_slice_method, device=input.device, bw_e=self.weight_sliced.bw_e,
-        is_weight=False, paral_size=self.input_paral_size, quant_gran=self.input_quant_gran)
+        input_sliced = SlicedData(self.input_slice_method, device=input.device, bw_e=self.input_bw_e,
+                                  is_weight=False, paral_size=self.input_paral_size, 
+                                  quant_gran=self.input_quant_gran, clip_ratio=self.input_clip_ratio)
         input_unfold = F.unfold(input, kernel_size=self.weight.shape[2:], stride=self.stride, padding=self.padding,
                                 dilation=self.dilation).transpose(1, 2)
         input_sliced.slice_data_imp(self.engine, input_unfold.detach())

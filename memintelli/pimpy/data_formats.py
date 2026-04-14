@@ -19,7 +19,7 @@ class SlicedData(object):
     """
 
     def __init__(self, slice_method: torch.Tensor, bw_e=None, is_weight=False, paral_size = (64, 64),
-                 quant_gran=None, device=None, inference=False):
+                 quant_gran=None, device=None, inference=False, clip_ratio=1.0):
         """
         the sliced data for the data slicing method with quantization
         :param slice_method: the data slicing method, bit width of each slice,
@@ -29,6 +29,7 @@ class SlicedData(object):
         :param is_weight: if True, slice the input data, if False, slice the weight data
         :param device: use cpu or gpu, default is cpu (None)
         :param inference: the flag to record the sliced data is used in the inference model or not
+        :param clip_ratio: the ratio to clip the max value of the data
         """
         self.bw_e = bw_e
         self.is_weight = is_weight
@@ -38,6 +39,7 @@ class SlicedData(object):
         # if inference is True, the sliced data of weight keeps the conductance of G
         self.G = None
         self.paral_size = paral_size
+        self.clip_ratio = clip_ratio
         if quant_gran is None:
             self.quant_gran = paral_size
         else:
@@ -188,7 +190,8 @@ class SlicedData(object):
         else:
             self.sliced_data, self.quantized_data, self.max_data, self.e_bias  = quant_map_tensor(temp_mat,
                                                                                                   self.slice_method,
-                                                                                                  max_abs_temp_mat)
+                                                                                                  max_abs_temp_mat,
+                                                                                                  clip_ratio=self.clip_ratio)
 
         self.quantized_data = self.quantized_data.transpose(2, 3).reshape(mat.shape[0], num_gran_row * num_divide_row * paral_size[0],
                                     num_gran_col * num_divide_col * paral_size[1])[:, :mat.shape[1], :mat.shape[2]]

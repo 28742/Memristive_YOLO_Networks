@@ -10,6 +10,14 @@
 import torch
 import numpy as np
 from matplotlib import pyplot as plt
+import sys
+import argparse
+from pathlib import Path
+
+# Ensure we import the local MemIntelli source tree (repo root)
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 from memintelli.pimpy.memmat_tensor import DPETensor
 from memintelli.pimpy.data_formats import SlicedData
@@ -19,6 +27,11 @@ def SNR(p_actual, p_ideal):
     return 10 * np.log10(np.sum(p_actual**2) / np.sum((p_ideal - p_actual)**2))
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--slice", type=str, default="1,1,2,2,2", help="Slice config, e.g., 1,1,2,2,2")
+    parser.add_argument("--no-plot", action="store_true", help="Disable plotting")
+    args = parser.parse_args()
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(42)
 
@@ -29,19 +42,21 @@ def main():
         write_variation=0.0,          # Write variation
         rate_stuck_HGS=0.001,          # Rate of stuck at HGS
         rate_stuck_LGS=0.000,          # Rate of stuck at LGS
-        read_variation={0:0.05, 1:0.05, 2:0.05, 3:0.05},           # Read variation
+        read_variation=0.05,            # Read variation
+        # read_variation={0:0.05, 1:0.05, 2:0.05, 3:0.05,4:0.05,5:0.05,6:0.05},           # Read variation
         vnoise=0.05,                   # Random Gaussian noise of voltage
-        rdac=2**2,                      # Number of DAC resolution 
-        g_level=2**2,                   # Number of conductance levels
+        rdac=2**4,                      # Number of DAC resolution 
+        g_level=2**4,                   # Number of conductance levels
         radc=2**12
         )
 
     # Initialize input and matrix data
     input_data = torch.randn(400, 500, device=device)
     weight_data = torch.randn(500, 600, device=device)
+    slice_list = [int(x) for x in args.slice.split(',')]
     # Define dynamic bit-slicing parameters for input and weight
-    input_slice = torch.tensor([1, 1, 2, 2, 2])
-    weight_slice = torch.tensor([1, 1, 2, 2, 2])
+    input_slice = torch.tensor(slice_list)
+    weight_slice = torch.tensor(slice_list)
 
     weight_quant_gran = (128, 128)   # Quantization granularity of the weight matrix
     input_quant_gran = (1, 128)      # Quantization granularity of the input matrix
@@ -86,7 +101,13 @@ def main():
     plt.xlabel('Ideal Result of matrix multiplication')
     plt.ylabel('Actual Result of matrix multiplication')
 
-    plt.show()
+    # Save the figure to a file
+    output_png = 'matrix_multiplication.png'
+    plt.savefig(output_png)
+    print(f"Figure saved to {output_png}")
+
+    if not args.no_plot:
+        plt.show()
     
 if __name__ == "__main__":
     main()

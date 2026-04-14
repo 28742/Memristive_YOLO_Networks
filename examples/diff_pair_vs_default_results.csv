@@ -1,0 +1,11 @@
+Write Variation,Architecture,mAP50-95,mAP50
+0.0,Default ,0.2712,0.4544
+0.0,Differential Pair ,0.2718,0.4554
+0.02,Default ,0.2087,0.381
+0.02,Differential Pair ,0.2688,0.452
+0.05,Default ,0.0392,0.0916
+0.05,Differential Pair ,0.2514,0.4308
+0.07,Default ,0.0047,0.0135
+0.07,Differential Pair ,0.2278,0.4003
+0.1,Default ,0.0001,0.0004
+0.1,Differential Pair ,0.1768,0.3263

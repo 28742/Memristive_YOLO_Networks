@@ -41,7 +41,7 @@ def RE(ytest, ypred):
     return np.sqrt(np.sum((ytest-ypred)**2))/np.sqrt(np.sum(ytest**2))
 
 
-def quant_map_tensor(mat, blk, max_abs_temp_mat = None):
+def quant_map_tensor(mat, blk, max_abs_temp_mat=None, clip_ratio=1.0):
     """
     convert the data to the quantized data
 
@@ -49,6 +49,8 @@ def quant_map_tensor(mat, blk, max_abs_temp_mat = None):
         mat (torch.Tensor): (batch, num_divide_row, num_divide_col, m, n)
         blk (torch.Tensor): slice method
         max_abs_temp_mat (torch.tensor): the max value of the mat
+        clip_ratio (float): factor to scale max_mat. 1.0 means no additional clipping, 
+                           <1.0 will clip values above clip_ratio * max_mat.
 
     Returns:
         data_int (torch.Tensor): the quantized data, the shape is (batch, num_divide_row_a, num_divide, num_slice ,m , n)
@@ -65,8 +67,14 @@ def quant_map_tensor(mat, blk, max_abs_temp_mat = None):
     else:
         max_mat = max_abs_temp_mat
 
-    matq = torch.round(mat / max_mat * (2 ** (bits - 1) - 1)).int()
-    mat_data = matq / (2 ** (bits - 1) - 1) * max_mat
+    # Apply clipping ratio to the range
+    effective_max = max_mat * clip_ratio
+    
+    # Clip input matrix to the effective range
+    clipped_mat = torch.clamp(mat, -effective_max, effective_max)
+    
+    matq = torch.round(clipped_mat / effective_max * (2 ** (bits - 1) - 1)).int()
+    mat_data = matq / (2 ** (bits - 1) - 1) * effective_max
     location = torch.where(matq < 0)
     matq[location] = 2 ** bits + matq[location]
 

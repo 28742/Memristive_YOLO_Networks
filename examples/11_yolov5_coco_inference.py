@@ -2,15 +2,15 @@
 # @File  : 11_yolov5_coco_inference.py
 # @Author: MemIntelli contributors
 # @Date  : 2026/01/15
-"""
+r"""
 Memintelli example 11: YOLOv5 on COCO val2017 (mAP50-95 and mAP50).
 
-Dataset layout (default under /data/dataset/coco):
-  /data/dataset/coco/
+Dataset layout (default under D:\Repo\data\dataset):
+  D:\Repo\data\dataset\
     images/val2017/*.jpg
     annotations/instances_val2017.json
 
-This script evaluates a pretrained YOLOv5n/s/m model at image size 640.
+This script evaluates a pretrained YOLOv5n/s/m model (or a local YOLOv5 .pt checkpoint) at image size 640.
 """
 
 from __future__ import annotations
@@ -26,6 +26,25 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import torch
+import torch.nn as nn
+
+# ---- 为了兼容读取训练脚本中生成的自带噪声层的权重 ----
+class NoisyConv2d(nn.Conv2d):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.noise_snr_db = 10.0
+
+    def forward(self, input):
+        if self.training:
+            with torch.no_grad():
+                factor_linear = 10 ** (self.noise_snr_db / 20.0)
+                noise_std = self.weight.std() / factor_linear
+            noisy_weight = self.weight + torch.randn_like(self.weight) * noise_std
+            return self._conv_forward(input, noisy_weight, self.bias)
+        else:
+            return self._conv_forward(input, self.weight, self.bias)
+# --------------------------------------------------------
+
 from torch.utils.data import DataLoader, Dataset
 from torchvision.datasets import CocoDetection
 from PIL import Image
@@ -299,7 +318,8 @@ def evaluate(
                 if not isinstance(y, torch.Tensor):
                     raise TypeError(f"Unexpected YOLOv5 output type: {type(y)}")
 
-                conf = getattr(getattr(model, "model", model), "conf", 0.001)
+                conf = getattr(getattr(model, "model", model), "conf", 0.025)
+                # 原始为0.001，但我们在量化/蒸馏权重时可能会看到更低的置信度分数，尤其是对于小目标，所以默认改为1e-4（也可以通过参数覆盖）。
                 iou = getattr(getattr(model, "model", model), "iou", 0.50)
                 max_det = getattr(getattr(model, "model", model), "max_det", 300)
                 dets = non_max_suppression(y, conf_thres=float(conf), iou_thres=float(iou), max_det=int(max_det), multi_label=True)
@@ -336,6 +356,7 @@ def evaluate(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="yolov5n", choices=["yolov5n", "yolov5s", "yolov5m"])
+    parser.add_argument("--pt-path", type=str, default="", help="本地 YOLOv5 .pt 路径；非空时优先加载该权重")
     # batch-size in memristive mode is extremely memory hungry (especially at img=640),
     # so we decide the default dynamically after parsing.
     parser.add_argument("--batch-size", type=int, default=None, help="software 模式默认 8;mem 模式默认 1(更省显存)")
@@ -343,22 +364,38 @@ def main():
     parser.add_argument("--device", type=str, default="cuda:0" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--data-root", type=str, default="")
     parser.add_argument("--download", action="store_true", help="若 COCO val2017 缺失则自动下载到 data-root")
-    parser.add_argument("--max-batches", type=int, default=3000, help=">0 时只评估前 N 个 batch(调试用)")
-    parser.add_argument("--conf", type=float, default=0.001, help="YOLOv5 conf threshold")
+    parser.add_argument("--export-path", type=str, default="quantized_yolov5n.pt", help="保存量化后模型的路径")
+    parser.add_argument("--max-batches", type=int, default=50, help=">0 时只评估前 N 个 batch(调试用)")
+    parser.add_argument("--conf", type=float, default=None, help="YOLOv5 conf threshold；不传时官方权重默认0.001，自定义pt默认1e-4")
     parser.add_argument("--iou", type=float, default=0.50, help="YOLOv5 NMS IoU threshold")
     parser.add_argument("--max-det", type=int, default=300, help="YOLOv5 max det per image")
-    parser.add_argument("--mem-enabled", action="store_true", help="启用 MemInte3000DPETensor)存算阵列模拟推理")
+    parser.add_argument("--mem-enabled", action="store_true", help="启用 MemIntelli 存算阵列模拟推理")
     parser.add_argument("--mem-debug", action="store_true", help="打印/验证是否走 MemIntelli 存算路径(Conv2dMem hook)")
-    parser.add_argument("--var", type=float, default=0.05, help="DPETensor variation variance parameter")
+    parser.add_argument("--var", type=float, default=0.05, help="write variation")
+    parser.add_argument("--rvar", type=float, default=0, help="read variation")
     parser.add_argument("--radc-bits", type=int, default=12, help="ADC 精度位数")
+    parser.add_argument("--input-paral-size", type=str, default="1,64", help="Input parallel size (h,w)")
+    parser.add_argument("--weight-paral-size", type=str, default="64,1", help="Weight parallel size (h,w)")
+    parser.add_argument("--input-quant-gran", type=str, default="1,64", help="Input quantization granularity (h,w)")
+    parser.add_argument("--weight-quant-gran", type=str, default="64,1", help="Weight quantization granularity (h,w)")
+    parser.add_argument("--input-slice", type=str, default="1,1,2,4", help="Input slice config (comma separated ints)")
+    parser.add_argument("--weight-slice", type=str, default="1,1,2,4", help="Weight slice config (comma separated ints)")
+    parser.add_argument("--input-clip-ratio", type=float, default=1.0, help="Clip ratio for input quantization")
+    parser.add_argument("--weight-clip-ratio", type=float, default=1.0, help="Clip ratio for weight quantization")
+    parser.add_argument("--zero-thresh", type=float, default=0.0, help="将区间 (-threshold, 0) 内的微小负权重置零（消融实验方案A）")
+    parser.add_argument("--diff-pair", action="store_true", help="启用差分对架构，将权重拆分为正负双阵列避开补码负数极大噪声（方案C）")
     args = parser.parse_args()
+
+    # Adaptive conf default: distilled/custom checkpoints can have much lower score calibration.
+    if args.conf is None:
+        args.conf = 1e-4 if args.pt_path else 0.001
 
     # Decide default batch size
     if args.batch_size is None:
         args.batch_size = 1 if args.mem_enabled else 1
 
-    # Default to system-wide dataset directory (as requested): /data/dataset/coco
-    data_root = Path(args.data_root) if args.data_root else Path("/data/dataset/coco")
+    # Default to system-wide dataset directory (as requested): D:\Repo\data\dataset
+    data_root = Path(args.data_root) if args.data_root else Path(r"/data/dataset/coco")
 
     img_root, ann_file = maybe_prepare_coco_val2017(data_root)
 
@@ -383,9 +420,18 @@ def main():
 
     device = torch.device(args.device)
 
-    # Slicing configuration and INT/FP mode settings (same style as Example 09)
-    input_slice = (1,  1, 2, 4)
-    weight_slice = (1,  1, 2, 4)
+    # Slicing configuration
+    def parse_slice(s):
+        return tuple(map(int, s.split(',')))
+
+    input_slice = parse_slice(args.input_slice)
+    weight_slice = parse_slice(args.weight_slice)
+    
+    input_paral_size = parse_slice(args.input_paral_size)
+    weight_paral_size = parse_slice(args.weight_paral_size)
+    input_quant_gran = parse_slice(args.input_quant_gran)
+    weight_quant_gran = parse_slice(args.weight_quant_gran)
+
     bw_e = None
 
     mem_engine = None
@@ -395,7 +441,7 @@ def main():
             LGS=1e-8,
             rate_stuck_HGS=0.00,
             rate_stuck_LGS=0.00,
-            read_variation=0.00,
+            read_variation=args.rvar,
             vnoise=0.0,
             write_variation=args.var,
             rdac=2**4,
@@ -408,6 +454,7 @@ def main():
     yolo = YOLOv5_zoo(
         model_name=args.model,
         pretrained=True,
+        weights_path=args.pt_path or None,
         img_size=args.img_size,
         device=device,
         conf_thres=args.conf,
@@ -419,10 +466,12 @@ def main():
         input_slice=input_slice,
         weight_slice=weight_slice,
         bw_e=bw_e,
-        input_paral_size=(1, 64),
-        weight_paral_size=(64, 1),
-        input_quant_gran=(1, 64),
-        weight_quant_gran=(64, 1),
+        input_paral_size=input_paral_size,
+        weight_paral_size=weight_paral_size,
+        input_quant_gran=input_quant_gran,
+        weight_quant_gran=weight_quant_gran,
+        input_clip_ratio=args.input_clip_ratio,
+        weight_clip_ratio=args.weight_clip_ratio,
     ).to(device)
     # Force multi_label=True to match official val.py logic (boosts mAP by ~0.01 on COCO)
     if hasattr(yolo.model, "multi_label"):
@@ -434,8 +483,53 @@ def main():
     # print(yolo)
 
     if args.mem_enabled:
+        if args.zero_thresh > 0.0:
+            print(f"[MemIntelli][Ablation] 应用方案A: 将 (-{args.zero_thresh}, 0) 的微小负权重强制置 0（去除极大电导映射崩溃点）")
+            pruned_count = 0
+            total_count = 0
+            with torch.no_grad():
+                for name, param in yolo.named_parameters():
+                    if 'weight' in name:
+                        # 只针对微小的负权重量（对应补码111...1的最高电导异常抗噪能力低的情况）
+                        mask = (param < 0) & (param > -args.zero_thresh)
+                        pruned_count += mask.sum().item()
+                        total_count += param.numel()
+                        param[mask] = 0.0
+            print(f"[MemIntelli][Ablation] 置零负权重比例: {pruned_count} / {total_count} ({pruned_count/total_count*100:.2f}%)")
+
+        if args.diff_pair:
+            import copy
+            class DiffConv2dMem(nn.Module):
+                def __init__(self, c_mem):
+                    super().__init__()
+                    self.pos_conv = copy.deepcopy(c_mem)
+                    self.neg_conv = copy.deepcopy(c_mem)
+                    w = c_mem.weight.data
+                    self.pos_conv.weight = nn.Parameter(torch.clamp(w, min=0))
+                    self.neg_conv.weight = nn.Parameter(torch.clamp(-w, min=0))
+                    if self.neg_conv.bias is not None:
+                        self.neg_conv.bias = nn.Parameter(torch.zeros_like(self.neg_conv.bias.data))
+                def forward(self, x):
+                    return self.pos_conv(x) - self.neg_conv(x)
+
+            def enable_diff_pair(module):
+                for name, child in module.named_children():
+                    if isinstance(child, Conv2dMem):
+                        setattr(module, name, DiffConv2dMem(child))
+                    else:
+                        enable_diff_pair(child)
+
+            with torch.no_grad():
+                enable_diff_pair(yolo)
+            print("[MemIntelli][DiffPair] 应用方案C: 已启用正负双阵列拆分 (Differential Pair)。")
+
         # Convert original weights into quantized sliced weights for PIM simulation
-        yolo.update_weight()
+        if hasattr(yolo, 'update_weight'):
+            yolo.update_weight()
+        else:
+            for m in yolo.modules():
+                if isinstance(m, Conv2dMem):
+                    m.update_weight()
         # Basic checks
         mem_convs = [m for m in yolo.modules() if isinstance(m, Conv2dMem)]
         print(f"[MemIntelli][Check] Conv2dMem count: {len(mem_convs)}")
@@ -458,7 +552,8 @@ def main():
     stats = evaluate(yolo, loader, device, max_batches=args.max_batches, mem_debug=bool(args.mem_debug and args.mem_enabled))
     map_5095 = float(stats["map"].detach().cpu())
     map_50 = float(stats["map_50"].detach().cpu())
-    print(f"\nCOCO val2017 @img{args.img_size} - {args.model}")
+    model_tag = args.model if not args.pt_path else str(Path(args.pt_path).name)
+    print(f"\nCOCO val2017 @img{args.img_size} - {model_tag}")
     print(f"mAP50-95: {map_5095:.4f}")
     print(f"mAP50   : {map_50:.4f}")
 
